@@ -1,0 +1,760 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Token Dashboard</title>
+<meta name="description" content="Browser-only dashboard for Claude Code token usage. Your logs are read locally and never uploaded.">
+<style>
+:root {
+  color-scheme: light;
+  --surface-0: #f4f4f1;
+  --surface-1: #fcfcfb;
+  --border: #e2e1dc;
+  --grid: #ecebe7;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #77766f;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --accent: #2a78d6;
+  --warn-bg: #fff4dc;
+  --warn-text: #6b4a00;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0: #121211;
+    --surface-1: #1a1a19;
+    --border: #2e2e2c;
+    --grid: #272725;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted: #8f8e85;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --accent: #3987e5;
+    --warn-bg: #2d2410;
+    --warn-text: #e9c97a;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0: #121211;
+  --surface-1: #1a1a19;
+  --border: #2e2e2c;
+  --grid: #272725;
+  --text-primary: #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted: #8f8e85;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --accent: #3987e5;
+  --warn-bg: #2d2410;
+  --warn-text: #e9c97a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--surface-0);
+  color: var(--text-primary);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); }
+header.top {
+  display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center;
+  padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--surface-1);
+}
+header.top h1 { font-size: 16px; margin: 0; font-weight: 650; letter-spacing: .01em; }
+header.top .spacer { flex: 1; }
+.btn, select {
+  font: inherit; color: var(--text-primary); background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; cursor: pointer;
+}
+.btn:hover, select:hover { border-color: var(--text-muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn:focus-visible, select:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+nav.tabs { display: flex; gap: 4px; padding: 8px 16px 0; overflow-x: auto; background: var(--surface-1); border-bottom: 1px solid var(--border); }
+nav.tabs a {
+  padding: 8px 14px; text-decoration: none; color: var(--text-secondary);
+  border-bottom: 2px solid transparent; white-space: nowrap;
+}
+nav.tabs a[aria-current="page"] { color: var(--text-primary); border-bottom-color: var(--accent); font-weight: 600; }
+main { max-width: 1120px; margin: 0 auto; padding: 20px 16px 48px; }
+.status { color: var(--text-secondary); font-size: 13px; padding: 8px 16px; }
+.card {
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px; margin-bottom: 16px;
+}
+.card h2 { font-size: 14px; font-weight: 650; margin: 0 0 4px; }
+.card .sub { color: var(--text-muted); font-size: 12px; margin: 0 0 12px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.kpi { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.kpi .label { color: var(--text-secondary); font-size: 12px; }
+.kpi .value { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.kpi .note { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.grid2 .card { margin-bottom: 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 8px; padding: 0; list-style: none; color: var(--text-secondary); font-size: 12px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.chart-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.linkbtn { background: none; border: 0; color: var(--accent); cursor: pointer; font: inherit; padding: 2px 4px; }
+svg text { fill: var(--text-muted); font-size: 11px; font-family: inherit; }
+svg .gridline { stroke: var(--grid); stroke-width: 1; }
+svg .seg { stroke: var(--surface-1); stroke-width: 2; }
+.hbars { list-style: none; margin: 0; padding: 0; }
+.hbars li { display: grid; grid-template-columns: minmax(80px, 38%) 1fr auto; gap: 10px; align-items: center; padding: 4px 0; font-size: 13px; }
+.hbars .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
+.hbars .track { height: 8px; background: var(--grid); border-radius: 4px; overflow: hidden; }
+.hbars .fill { height: 100%; background: var(--series-1); border-radius: 0 4px 4px 0; }
+.hbars .val { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--text-secondary); font-weight: 600; font-size: 12px; white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.click { cursor: pointer; }
+tr.click:hover td { background: var(--surface-0); }
+.tablewrap { overflow-x: auto; }
+.muted { color: var(--text-muted); }
+code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+details.prompt { border-top: 1px solid var(--border); padding: 10px 0; }
+details.prompt:first-of-type { border-top: 0; }
+details.prompt summary { cursor: pointer; display: grid; grid-template-columns: 28px 1fr auto auto; gap: 12px; align-items: baseline; list-style: none; }
+details.prompt summary::-webkit-details-marker { display: none; }
+details.prompt .rank { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+details.prompt .ptext { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+details.prompt .body { margin: 10px 0 0 40px; }
+pre.ptxt { white-space: pre-wrap; word-break: break-word; background: var(--surface-0); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin: 0 0 10px; max-height: 220px; overflow: auto; font-size: 12px; }
+.tip { border-left: 3px solid var(--series-4); }
+.tip .cat { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); }
+.tip h3 { margin: 2px 0 4px; font-size: 14px; word-break: break-word; }
+.tip p { margin: 0 0 8px; color: var(--text-secondary); }
+.empty {
+  border: 2px dashed var(--border); border-radius: 16px; padding: 40px 20px; text-align: center;
+  background: var(--surface-1);
+}
+.empty.drag { border-color: var(--accent); }
+.empty h2 { margin: 0 0 8px; font-size: 20px; }
+.empty p { max-width: 560px; margin: 8px auto; color: var(--text-secondary); }
+.empty .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 18px 0; }
+.empty ol { text-align: left; max-width: 560px; margin: 16px auto 0; color: var(--text-secondary); }
+.notice { background: var(--warn-bg); color: var(--warn-text); border-radius: 8px; padding: 8px 12px; font-size: 12px; margin-bottom: 12px; }
+#tip-box {
+  position: fixed; z-index: 10; pointer-events: none; display: none; min-width: 150px;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.18);
+}
+#tip-box .t { font-weight: 650; margin-bottom: 4px; }
+#tip-box .r { display: flex; justify-content: space-between; gap: 16px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+#tip-box .r i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+.back { display: inline-block; margin-bottom: 12px; }
+@media (max-width: 560px) {
+  details.prompt summary { grid-template-columns: 24px 1fr auto; }
+  details.prompt summary .tok { display: none; }
+  details.prompt .body { margin-left: 0; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Token Dashboard</h1>
+  <button class="btn primary" id="btn-folder" type="button">Choose projects folder</button>
+  <button class="btn" id="btn-files" type="button">Choose .jsonl files</button>
+  <button class="btn" id="btn-sample" type="button">Sample data</button>
+  <span class="spacer"></span>
+  <label class="muted" for="plan">Plan</label>
+  <select id="plan" aria-label="Pricing plan"></select>
+  <button class="btn" id="btn-theme" type="button" aria-label="Toggle light or dark theme">Theme</button>
+  <input type="file" id="in-folder" webkitdirectory directory multiple hidden>
+  <input type="file" id="in-files" accept=".jsonl" multiple hidden>
+</header>
+<nav class="tabs" id="tabs" aria-label="Sections"></nav>
+<div class="status" id="status" role="status" aria-live="polite"></div>
+<main id="view"></main>
+<div id="tip-box" role="tooltip"></div>
+
+<script>
+"use strict";
+/* ───────── config (mirrors pricing.json in the repo; USD per 1M tokens) ───────── */
+const PRICING = {
+  models: {
+    "claude-opus-4-7":   { tier: "opus",   input: 15, output: 75, cache_read: 1.5, cache_create_5m: 18.75, cache_create_1h: 30 },
+    "claude-opus-4-6":   { tier: "opus",   input: 15, output: 75, cache_read: 1.5, cache_create_5m: 18.75, cache_create_1h: 30 },
+    "claude-sonnet-4-6": { tier: "sonnet", input: 3,  output: 15, cache_read: 0.3, cache_create_5m: 3.75,  cache_create_1h: 6 },
+    "claude-haiku-4-5":  { tier: "haiku",  input: 1,  output: 5,  cache_read: 0.1, cache_create_5m: 1.25,  cache_create_1h: 2 }
+  },
+  tier_fallback: {
+    opus:   { input: 15, output: 75, cache_read: 1.5, cache_create_5m: 18.75, cache_create_1h: 30 },
+    sonnet: { input: 3,  output: 15, cache_read: 0.3, cache_create_5m: 3.75,  cache_create_1h: 6 },
+    haiku:  { input: 1,  output: 5,  cache_read: 0.1, cache_create_5m: 1.25,  cache_create_1h: 2 }
+  },
+  plans: {
+    "api":     { monthly: 0,   label: "API (pay-per-token)" },
+    "pro":     { monthly: 20,  label: "Pro" },
+    "max":     { monthly: 100, label: "Max" },
+    "max-20x": { monthly: 200, label: "Max 20x" }
+  }
+};
+const TARGET_FIELDS = { Read: "file_path", Edit: "file_path", Write: "file_path", Glob: "pattern", Grep: "pattern",
+  Bash: "command", WebFetch: "url", WebSearch: "query", Task: "subagent_type", Skill: "skill" };
+const DAY = 86400000;
+
+/* ───────── small helpers ───────── */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const nf = new Intl.NumberFormat("en-US");
+const fmtInt = n => nf.format(Math.round(n));
+function fmtTok(n) {
+  n = n || 0;
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + "B";
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + "M";
+  if (n >= 1e4) return (n / 1e3).toFixed(1) + "k";
+  return fmtInt(n);
+}
+const fmtUsd = n => "$" + (n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtPct = x => (x * 100).toFixed(0) + "%";
+const fmtDate = ts => ts ? ts.replace("T", " ").slice(0, 16) + " UTC" : "";
+const trunc = (s, n) => (s && s.length > n ? s.slice(0, n - 1) + "…" : s || "");
+function lsGet(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage blocked: ignore */ } }
+
+/* ───────── pricing ───────── */
+function tierOf(model) {
+  const m = (model || "").toLowerCase();
+  for (const t of ["opus", "sonnet", "haiku"]) if (m.includes(t)) return t;
+  return null;
+}
+function costOf(model, u) {
+  let r = PRICING.models[model], estimated = false;
+  if (!r) {
+    const t = tierOf(model);
+    if (!t) return { usd: null, estimated: true };
+    r = PRICING.tier_fallback[t]; estimated = true;
+  }
+  const usd = (u.i * r.input + u.o * r.output + u.cr * r.cache_read + u.c5 * r.cache_create_5m + u.c1 * r.cache_create_1h) / 1e6;
+  return { usd, estimated };
+}
+
+/* ───────── parsing (same rules as token_dashboard/scanner.py) ───────── */
+function newStore() {
+  return { msgs: new Map(), results: new Map(), files: 0, lines: 0, skipped: 0 };
+}
+function slugFromPath(path) {
+  const seg = path.split("/").filter(Boolean);
+  const pi = seg.indexOf("projects");
+  if (pi >= 0 && seg.length > pi + 2) return seg[pi + 1];
+  if (seg.length > 2) return seg[1];
+  if (seg.length === 2) return seg[0];
+  return "(loose files)";
+}
+function ingest(text, slug, S) {
+  let start = 0;
+  const n = text.length;
+  while (start < n) {
+    let nl = text.indexOf("\n", start);
+    const end = nl === -1 ? n : nl;
+    const line = text.slice(start, end).trim();
+    start = end + 1;
+    if (!line) continue;
+    S.lines++;
+    let rec;
+    try { rec = JSON.parse(line); } catch (e) { S.skipped++; continue; }
+    if (!rec || typeof rec !== "object" || !rec.uuid || !rec.type || !rec.sessionId || !rec.timestamp) { S.skipped++; continue; }
+    const m = rec.message || {};
+    const content = m.content;
+    if (rec.type === "user" && Array.isArray(content)) {
+      for (const b of content) {
+        if (b && b.type === "tool_result" && b.tool_use_id) {
+          let chars = 0;
+          if (typeof b.content === "string") chars = b.content.length;
+          else if (Array.isArray(b.content)) for (const p of b.content) chars += ((p && p.text) || "").length;
+          S.results.set(b.tool_use_id, { tokens: Math.floor(chars / 4), err: !!b.is_error, ts: rec.timestamp, session: rec.sessionId, project: slug });
+        }
+      }
+    }
+    let prompt = null;
+    if (rec.type === "user") {
+      if (typeof content === "string") prompt = content;
+      else if (Array.isArray(content)) {
+        const t = content.filter(b => b && b.type === "text").map(b => b.text || "").join("");
+        prompt = t || null;
+      }
+    }
+    const tools = [];
+    if (Array.isArray(content)) {
+      for (const b of content) {
+        if (!b || b.type !== "tool_use") continue;
+        const name = b.name || "unknown";
+        const f = TARGET_FIELDS[name];
+        const v = f && b.input ? b.input[f] : null;
+        tools.push({ id: b.id, name, target: typeof v === "string" ? v.slice(0, 500) : null });
+      }
+    }
+    const us = m.usage || {}, cc = us.cache_creation || {};
+    const msg = {
+      uuid: rec.uuid, session: rec.sessionId, project: slug, type: rec.type, ts: rec.timestamp,
+      sidechain: !!rec.isSidechain, agent: rec.agentId || null, model: m.model || null, mid: m.id || null,
+      u: { i: +us.input_tokens || 0, o: +us.output_tokens || 0, cr: +us.cache_read_input_tokens || 0,
+           c5: +cc.ephemeral_5m_input_tokens || 0, c1: +cc.ephemeral_1h_input_tokens || 0 },
+      prompt, tools
+    };
+    // Streaming snapshots share (session, message.id) with different uuids: keep only the latest.
+    S.msgs.set(msg.mid ? rec.sessionId + "|" + msg.mid : rec.uuid, msg);
+  }
+}
+
+/* ───────── derive analytics ───────── */
+function derive(S) {
+  const all = [...S.msgs.values()].sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0));
+  const D = { all, assistants: [], sessions: new Map(), prompts: [], days: new Map(), projects: new Map(), models: new Map(),
+    tools: new Map(), totals: { i: 0, o: 0, cr: 0, cc: 0, cost: 0 }, uncosted: 0, estimated: 0, maxTs: "", minTs: "" };
+  const bump = (map, key, init) => { let v = map.get(key); if (!v) { v = init(); map.set(key, v); } return v; };
+  const curPrompt = new Map(); // session -> current prompt
+  for (const m of all) {
+    if (!D.minTs || m.ts < D.minTs) D.minTs = m.ts;
+    if (m.ts > D.maxTs) D.maxTs = m.ts;
+    const ses = bump(D.sessions, m.session, () => ({ id: m.session, project: m.project, first: m.ts, last: m.ts, turns: 0, prompts: 0, tok: 0, cost: 0, models: new Set() }));
+    if (m.ts < ses.first) ses.first = m.ts;
+    if (m.ts > ses.last) ses.last = m.ts;
+    if (m.type === "user" && m.prompt != null) {
+      const p = { n: D.prompts.length, text: m.prompt, ts: m.ts, session: m.session, project: m.project, turns: [], tok: 0, cost: 0, tools: 0, resultTok: 0 };
+      D.prompts.push(p); curPrompt.set(m.session, p); ses.prompts++;
+    }
+    if (m.type !== "assistant") continue;
+    const c = costOf(m.model, m.u);
+    m.cost = c.usd;
+    if (c.usd === null) D.uncosted++; else if (c.estimated) D.estimated++;
+    const cc = m.u.c5 + m.u.c1, tok = m.u.i + m.u.o + m.u.cr + cc;
+    m.tok = tok; m.cc = cc;
+    D.assistants.push(m);
+    D.totals.i += m.u.i; D.totals.o += m.u.o; D.totals.cr += m.u.cr; D.totals.cc += cc; D.totals.cost += c.usd || 0;
+    ses.turns++; ses.tok += tok; ses.cost += c.usd || 0; if (m.model) ses.models.add(m.model);
+    const day = bump(D.days, m.ts.slice(0, 10), () => ({ i: 0, o: 0, cr: 0, cc: 0, cost: 0, turns: 0 }));
+    day.i += m.u.i; day.o += m.u.o; day.cr += m.u.cr; day.cc += cc; day.cost += c.usd || 0; day.turns++;
+    const pr = bump(D.projects, m.project, () => ({ name: m.project, sessions: new Set(), prompts: 0, tok: 0, cost: 0, cr: 0, rebuild: 0, files: new Map() }));
+    pr.sessions.add(m.session); pr.tok += tok; pr.cost += c.usd || 0; pr.cr += m.u.cr; pr.rebuild += m.u.i + cc;
+    const md = bump(D.models, m.model || "(unknown)", () => ({ name: m.model || "(unknown)", tok: 0, cost: 0, turns: 0 }));
+    md.tok += tok; md.cost += c.usd || 0; md.turns++;
+    for (const t of m.tools) {
+      D.tools.set(t.name, (D.tools.get(t.name) || 0) + 1);
+      if (t.target && (t.name === "Read" || t.name === "Edit" || t.name === "Write")) pr.files.set(t.target, (pr.files.get(t.target) || 0) + 1);
+      const r = S.results.get(t.id);
+      t.result = r ? r.tokens : null; t.err = r ? r.err : false;
+    }
+    const p = curPrompt.get(m.session);
+    if (p) {
+      p.turns.push(m); p.tok += tok; p.cost += c.usd || 0; p.tools += m.tools.length;
+      for (const t of m.tools) p.resultTok += t.result || 0;
+    }
+  }
+  for (const p of D.prompts) { const pr = D.projects.get(p.project); if (pr) pr.prompts++; }
+  return D;
+}
+
+/* ───────── tips (same rules as token_dashboard/tips.py, window anchored to newest data) ───────── */
+function computeTips(S, D) {
+  if (!D.maxTs) return [];
+  const since = new Date(new Date(D.maxTs).getTime() - 7 * DAY).toISOString();
+  const win = D.assistants.filter(m => m.ts >= since);
+  const out = [];
+  const byProj = new Map();
+  for (const m of win) {
+    const v = byProj.get(m.project) || { cr: 0, rebuild: 0 };
+    v.cr += m.u.cr; v.rebuild += m.u.i + m.cc; byProj.set(m.project, v);
+  }
+  for (const [p, v] of byProj) {
+    const total = v.cr + v.rebuild;
+    if (total > 100000 && v.cr / total < 0.4)
+      out.push({ key: "cache:" + p, category: "cache", title: "Low cache hit rate in " + p,
+        body: `Cache hit rate is ${fmtPct(v.cr / total)} over the last 7 days of data. Sessions that restart context frequently rebuild cache. Consider longer-lived sessions or fewer context resets.` });
+  }
+  const files = new Map(), bash = new Map();
+  for (const m of win) for (const t of m.tools) {
+    if (!t.target) continue;
+    if (t.name === "Read" || t.name === "Edit" || t.name === "Write") {
+      const v = files.get(t.target) || { n: 0, s: new Set() }; v.n++; v.s.add(m.session); files.set(t.target, v);
+    } else if (t.name === "Bash") bash.set(t.target, (bash.get(t.target) || 0) + 1);
+  }
+  [...files].filter(([, v]) => v.n > 10).sort((a, b) => b[1].n - a[1].n).slice(0, 10).forEach(([t, v]) =>
+    out.push({ key: "repeat-file:" + t, category: "repeat-file", title: `${t} read/edited ${v.n} times`,
+      body: `This file was opened ${v.n} times across ${v.s.size} sessions in the last 7 days of data. A summary in CLAUDE.md or one read per session would avoid repeats.` }));
+  [...bash].filter(([, n]) => n > 15).sort((a, b) => b[1] - a[1]).slice(0, 10).forEach(([t, n]) =>
+    out.push({ key: "repeat-bash:" + t, category: "repeat-bash", title: `\`${trunc(t, 80)}\` ran ${n} times`,
+      body: `This bash command ran ${n} times in the last 7 days of data. Consider a watch flag or shell alias.` }));
+  const op = win.filter(m => (m.model || "").includes("opus") && m.u.o < 500 && !m.sidechain);
+  if (op.length >= 10) {
+    const inTok = op.reduce((a, m) => a + m.u.i + m.cc, 0), outTok = op.reduce((a, m) => a + m.u.o, 0);
+    const ro = PRICING.tier_fallback.opus, rs = PRICING.tier_fallback.sonnet;
+    const apiO = (inTok * ro.input + outTok * ro.output) / 1e6, apiS = (inTok * rs.input + outTok * rs.output) / 1e6;
+    if (apiO - apiS >= 1)
+      out.push({ key: "right-size:opus-short-turns-7d", category: "right-size", title: `${op.length} short Opus turns might fit on Sonnet`,
+        body: `Opus turns under 500 output tokens cost about ${fmtUsd(apiO)} in the last 7 days of data. Sonnet would have cost about ${fmtUsd(apiS)} (savings about ${fmtUsd(apiO - apiS)}).` });
+  }
+  const big = [...S.results.values()].filter(r => r.tokens > 50000 && r.ts >= since);
+  if (big.length >= 5)
+    out.push({ key: "tool-bloat:result-50k+", category: "tool-bloat", title: `${big.length} tool results over 50k tokens in the last 7 days of data`,
+      body: `Average size is ${fmtInt(big.reduce((a, r) => a + r.tokens, 0) / big.length)} tokens. Pipe long Bash output to head/tail and ask for narrower file reads.` });
+  const ag = new Map();
+  for (const m of win) if (m.sidechain && m.agent) { const a = ag.get(m.agent) || { n: 0, sum: 0, max: 0 }; const t = m.u.i + m.u.o; a.n++; a.sum += t; a.max = Math.max(a.max, t); ag.set(m.agent, a); }
+  for (const [id, a] of ag) if (a.n >= 10 && a.max > 6 * (a.sum / a.n) && a.max > 50000)
+    out.push({ key: "subagent-outlier:" + id, category: "subagent-outlier", title: `Subagent ${id} has cost outliers`,
+      body: `Largest invocation used ${fmtInt(a.max)} tokens vs mean ${fmtInt(a.sum / a.n)}. Worth checking what those did differently.` });
+  return out;
+}
+function dismissed() {
+  try { return JSON.parse(lsGet("td.dismissed", "{}")); } catch (e) { return {}; }
+}
+
+/* ───────── state ───────── */
+let S = newStore(), D = derive(S), TIPS = [];
+let showTable = false;
+const state = { plan: lsGet("td.plan", "api") };
+
+/* ───────── chart pieces ───────── */
+const SERIES = [
+  { key: "i", label: "Input", css: "--series-1" },
+  { key: "o", label: "Output", css: "--series-2" },
+  { key: "cr", label: "Cache read", css: "--series-3" },
+  { key: "cc", label: "Cache create", css: "--series-4" }
+];
+function dayRange() {
+  if (!D.days.size) return [];
+  const keys = [...D.days.keys()].sort();
+  const end = new Date(keys[keys.length - 1] + "T00:00:00Z").getTime();
+  const start = Math.max(new Date(keys[0] + "T00:00:00Z").getTime(), end - 89 * DAY);
+  const out = [];
+  for (let t = start; t <= end; t += DAY) out.push(new Date(t).toISOString().slice(0, 10));
+  return out;
+}
+function niceMax(v) {
+  if (v <= 0) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(v))), f = v / p;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p;
+}
+function dailyChart(width) {
+  const days = dayRange();
+  const W = Math.max(280, width), H = 230, pl = 46, pr = 8, pt = 8, pb = 24;
+  const iw = W - pl - pr, ih = H - pt - pb;
+  const vals = days.map(d => D.days.get(d) || { i: 0, o: 0, cr: 0, cc: 0, cost: 0 });
+  const max = niceMax(Math.max(...vals.map(v => v.i + v.o + v.cr + v.cc), 1));
+  const band = iw / days.length, bw = Math.max(2, Math.min(28, band * 0.7));
+  let g = "";
+  for (let k = 0; k <= 4; k++) {
+    const y = pt + ih - (ih * k) / 4;
+    g += `<line class="gridline" x1="${pl}" x2="${W - pr}" y1="${y}" y2="${y}"/><text x="${pl - 6}" y="${y + 4}" text-anchor="end">${fmtTok((max * k) / 4)}</text>`;
+  }
+  const every = Math.ceil(days.length / Math.max(2, Math.floor(iw / 70)));
+  let bars = "";
+  vals.forEach((v, idx) => {
+    const cx = pl + band * idx + band / 2, x = cx - bw / 2;
+    let y = pt + ih;
+    SERIES.forEach((s, si) => {
+      const h = (v[s.key] / max) * ih;
+      if (h <= 0) return;
+      y -= h;
+      const top = si === SERIES.length - 1 || SERIES.slice(si + 1).every(t => !v[t.key]);
+      bars += top
+        ? `<path class="seg" fill="var(${s.css})" d="M${x},${y + h} V${y + 3} Q${x},${y} ${x + 3},${y} H${x + bw - 3} Q${x + bw},${y} ${x + bw},${y + 3} V${y + h} Z"/>`
+        : `<rect class="seg" fill="var(${s.css})" x="${x}" y="${y}" width="${bw}" height="${h}"/>`;
+    });
+    if (idx % every === 0) g += `<text x="${cx}" y="${H - 6}" text-anchor="middle">${days[idx].slice(5)}</text>`;
+    bars += `<rect class="hit" data-day="${days[idx]}" x="${pl + band * idx}" y="${pt}" width="${band}" height="${ih}" fill="transparent"/>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Daily tokens, stacked by type">${g}${bars}</svg>`;
+}
+function hbars(rows, fmt, aria) {
+  const max = Math.max(...rows.map(r => r.v), 1e-9);
+  if (!rows.length) return `<p class="muted">No data.</p>`;
+  return `<ul class="hbars" aria-label="${esc(aria)}">${rows.map(r =>
+    `<li><span class="name" title="${esc(r.name)}">${esc(r.name)}</span><span class="track"><span class="fill" style="width:${Math.max(2, (r.v / max) * 100)}%;display:block"></span></span><span class="val">${esc(fmt(r.v))}</span></li>`).join("")}</ul>`;
+}
+
+/* ───────── views ───────── */
+function planNote() {
+  const p = PRICING.plans[state.plan] || PRICING.plans.api;
+  return p.monthly ? `You pay $${p.monthly}/mo on ${p.label}` : "";
+}
+function kpis() {
+  const t = D.totals, all = t.i + t.o + t.cr + t.cc, rebuild = t.i + t.cc, hit = t.cr + rebuild ? t.cr / (t.cr + rebuild) : 0;
+  const p = PRICING.plans[state.plan] || PRICING.plans.api;
+  let costNote = "API-equivalent estimate";
+  if (p.monthly && D.days.size) {
+    const keys = [...D.days.keys()].sort(), last = keys[keys.length - 1];
+    const cut = new Date(new Date(last + "T00:00:00Z").getTime() - 29 * DAY).toISOString().slice(0, 10);
+    const c30 = keys.filter(k => k >= cut).reduce((a, k) => a + D.days.get(k).cost, 0);
+    costNote = `${fmtUsd(c30)} in latest 30 days vs $${p.monthly}/mo ${p.label}`;
+  }
+  return `<div class="kpis">
+    <div class="kpi"><div class="label">Estimated cost</div><div class="value">${fmtUsd(t.cost)}</div><div class="note">${esc(costNote)}</div></div>
+    <div class="kpi"><div class="label">Total tokens</div><div class="value">${fmtTok(all)}</div><div class="note">${fmtTok(t.i)} in · ${fmtTok(t.o)} out</div></div>
+    <div class="kpi"><div class="label">Cache hit rate</div><div class="value">${fmtPct(hit)}</div><div class="note">${fmtTok(t.cr)} read from cache</div></div>
+    <div class="kpi"><div class="label">Sessions</div><div class="value">${fmtInt(D.sessions.size)}</div><div class="note">${fmtInt(D.projects.size)} projects</div></div>
+    <div class="kpi"><div class="label">Prompts / turns</div><div class="value">${fmtInt(D.prompts.length)}</div><div class="note">${fmtInt(D.assistants.length)} assistant turns</div></div>
+  </div>`;
+}
+function vOverview() {
+  const warn = (D.uncosted || D.estimated) ? `<div class="notice">${D.estimated ? fmtInt(D.estimated) + " turns use tier-level fallback pricing (model not listed exactly). " : ""}${D.uncosted ? fmtInt(D.uncosted) + " turns on unrecognised models are not costed." : ""}</div>` : "";
+  const projects = [...D.projects.values()].sort((a, b) => b.cost - a.cost).slice(0, 8).map(p => ({ name: p.name, v: p.cost }));
+  const models = [...D.models.values()].sort((a, b) => b.cost - a.cost).slice(0, 6).map(m => ({ name: m.name, v: m.cost }));
+  const tools = [...D.tools].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name, v]) => ({ name, v }));
+  const days = dayRange();
+  const tbl = `<div class="tablewrap"><table><thead><tr><th>Day (UTC)</th><th class="num">Input</th><th class="num">Output</th><th class="num">Cache read</th><th class="num">Cache create</th><th class="num">Cost</th></tr></thead><tbody>${
+    days.slice().reverse().map(d => { const v = D.days.get(d); return v ? `<tr><td>${d}</td><td class="num">${fmtInt(v.i)}</td><td class="num">${fmtInt(v.o)}</td><td class="num">${fmtInt(v.cr)}</td><td class="num">${fmtInt(v.cc)}</td><td class="num">${fmtUsd(v.cost)}</td></tr>` : ""; }).join("")}</tbody></table></div>`;
+  return `${warn}${kpis()}
+    <section class="card">
+      <div class="chart-head"><div><h2>Daily tokens</h2><p class="sub">Stacked by token type · UTC days · last ${days.length} days</p></div>
+        <button class="linkbtn" id="toggle-table" type="button">${showTable ? "Show chart" : "Show table"}</button></div>
+      <ul class="legend">${SERIES.map(s => `<li><i style="background:var(${s.css})"></i>${s.label}</li>`).join("")}</ul>
+      <div id="daily">${showTable ? tbl : ""}</div>
+    </section>
+    <div class="grid2">
+      <section class="card"><h2>Cost by project</h2><p class="sub">Top 8 · estimated USD</p>${hbars(projects, fmtUsd, "Cost by project")}</section>
+      <section class="card"><h2>Cost by model</h2><p class="sub">Estimated USD</p>${hbars(models, fmtUsd, "Cost by model")}</section>
+      <section class="card"><h2>Top tools</h2><p class="sub">Calls made by the assistant</p>${hbars(tools, fmtInt, "Top tools by calls")}</section>
+      <section class="card"><h2>What do these numbers mean?</h2>
+        <p class="sub" style="font-size:13px;line-height:1.6">
+        <b>Input</b>: new tokens sent to the model. <b>Output</b>: tokens it wrote. <b>Cache read</b>: previously-sent context re-used at roughly a tenth of the input price.
+        <b>Cache create</b>: context written to the cache for later turns. Cost is an API-price estimate; a Pro or Max subscription is billed flat.</p></section>
+    </div>`;
+}
+function turnRows(turns) {
+  return turns.map(m => `<tr><td class="mono">${esc(m.ts.slice(11, 19))}</td><td>${esc(m.model || "")}${m.sidechain ? ' <span class="muted">(subagent)</span>' : ""}</td>
+    <td class="num">${fmtTok(m.tok)}</td><td class="num">${m.cost === null ? "n/a" : fmtUsd(m.cost)}</td>
+    <td>${m.tools.map(t => `<div><code>${esc(t.name)}</code> <span class="muted">${esc(trunc(t.target || "", 70))}</span>${t.result != null ? ` <span class="muted">→ ${fmtTok(t.result)} tok${t.err ? " (error)" : ""}</span>` : ""}</div>`).join("") || '<span class="muted">—</span>'}</td></tr>`).join("");
+}
+const turnTable = turns => `<div class="tablewrap"><table><thead><tr><th>Time</th><th>Model</th><th class="num">Tokens</th><th class="num">Cost</th><th>Tool calls</th></tr></thead><tbody>${turnRows(turns)}</tbody></table></div>`;
+function vPrompts() {
+  const top = D.prompts.filter(p => p.turns.length).sort((a, b) => b.tok - a.tok).slice(0, 50);
+  if (!top.length) return `<p class="muted">No prompts found.</p>`;
+  return `<section class="card"><h2>Most expensive prompts</h2><p class="sub">Ranked by tokens across every assistant turn that followed the prompt in its session. Click one to see what happened. Top ${top.length}.</p>
+    ${top.map((p, i) => `<details class="prompt"><summary><span class="rank">${i + 1}</span><span class="ptext">${esc(trunc(p.text.replace(/\s+/g, " "), 140))}</span>
+      <span class="tok mono">${fmtTok(p.tok)} tok</span><span class="mono">${fmtUsd(p.cost)}</span></summary>
+      <div class="body"><p class="muted">${esc(p.project)} · ${esc(fmtDate(p.ts))} · ${p.turns.length} turns · ${p.tools} tool calls · ${fmtTok(p.resultTok)} tokens of tool output (approx.)</p>
+      <pre class="ptxt">${esc(trunc(p.text, 3000))}</pre>${turnTable(p.turns)}</div></details>`).join("")}</section>`;
+}
+function vSessions(id) {
+  if (id) {
+    const s = D.sessions.get(id);
+    if (!s) return `<p class="muted">Session not found.</p>`;
+    const items = D.all.filter(m => m.session === id && (m.type === "assistant" || m.prompt != null));
+    let html = "";
+    let pend = [];
+    const flush = () => { if (pend.length) { html += turnTable(pend); pend = []; } };
+    for (const m of items) {
+      if (m.type === "user") { flush(); html += `<pre class="ptxt"><b>You</b> · ${esc(m.ts.slice(11, 19))}\n${esc(trunc(m.prompt, 1500))}</pre>`; }
+      else pend.push(m);
+    }
+    flush();
+    return `<a class="back" href="#sessions">← All sessions</a><section class="card"><h2>${esc(s.project)}</h2>
+      <p class="sub">${esc(s.id)} · ${esc(fmtDate(s.first))} → ${esc(fmtDate(s.last))} · ${s.turns} turns · ${fmtTok(s.tok)} tokens · ${fmtUsd(s.cost)}</p>${html}</section>`;
+  }
+  const rows = [...D.sessions.values()].filter(s => s.turns).sort((a, b) => (a.last < b.last ? 1 : -1)).slice(0, 200);
+  return `<section class="card"><h2>Sessions</h2><p class="sub">Most recent ${rows.length}. Click a row for the turn-by-turn view.</p><div class="tablewrap"><table>
+    <thead><tr><th>Started</th><th>Project</th><th>Models</th><th class="num">Prompts</th><th class="num">Turns</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead><tbody>
+    ${rows.map(s => `<tr class="click" tabindex="0" data-href="#sessions/${encodeURIComponent(s.id)}"><td>${esc(fmtDate(s.first))}</td><td>${esc(s.project)}</td><td class="muted">${esc([...s.models].map(x => x.replace("claude-", "")).join(", "))}</td>
+      <td class="num">${s.prompts}</td><td class="num">${s.turns}</td><td class="num">${fmtTok(s.tok)}</td><td class="num">${fmtUsd(s.cost)}</td></tr>`).join("")}</tbody></table></div></section>`;
+}
+function vProjects() {
+  const rows = [...D.projects.values()].sort((a, b) => b.cost - a.cost);
+  return `<section class="card"><h2>Projects</h2><p class="sub">Compared by estimated cost. “Most touched files” counts Read, Edit and Write calls.</p><div class="tablewrap"><table>
+    <thead><tr><th>Project</th><th class="num">Sessions</th><th class="num">Prompts</th><th class="num">Tokens</th><th class="num">Cache hit</th><th class="num">Cost</th><th>Most touched files</th></tr></thead><tbody>
+    ${rows.map(p => { const tot = p.cr + p.rebuild; const f = [...p.files].sort((a, b) => b[1] - a[1]).slice(0, 3);
+      return `<tr><td>${esc(p.name)}</td><td class="num">${p.sessions.size}</td><td class="num">${p.prompts}</td><td class="num">${fmtTok(p.tok)}</td>
+      <td class="num">${tot ? fmtPct(p.cr / tot) : "—"}</td><td class="num">${fmtUsd(p.cost)}</td>
+      <td>${f.map(([n, c]) => `<div><code>${esc(trunc(n, 60))}</code> <span class="muted">×${c}</span></div>`).join("") || '<span class="muted">—</span>'}</td></tr>`; }).join("")}</tbody></table></div></section>`;
+}
+function vTips() {
+  const dis = dismissed(), now = Date.now();
+  const live = TIPS.filter(t => !(dis[t.key] && now - dis[t.key] < 14 * DAY));
+  const hidden = TIPS.length - live.length;
+  return `<p class="muted">Rule-based checks over the newest 7 days of the data you loaded.${hidden ? ` ${hidden} dismissed (hidden for 14 days).` : ""}</p>
+    ${live.map(t => `<section class="card tip"><div class="cat">${esc(t.category)}</div><h3>${esc(t.title)}</h3><p>${esc(t.body)}</p>
+      <button class="btn" data-dismiss="${esc(t.key)}" type="button">Dismiss</button></section>`).join("") ||
+      `<section class="card"><h2>No suggestions right now</h2><p class="sub">Nothing in the newest 7 days tripped a rule.</p></section>`}`;
+}
+function vEmpty() {
+  return `<div class="empty" id="dropzone"><h2>Load your Claude Code logs</h2>
+    <p>This page reads the session transcripts Claude Code saves on your computer. <b>Files stay in your browser</b> and nothing is uploaded; the page makes no network requests with your data.</p>
+    <div class="actions"><button class="btn primary" data-act="folder" type="button">Choose projects folder</button>
+      <button class="btn" data-act="files" type="button">Choose .jsonl files</button>
+      <button class="btn" data-act="sample" type="button">Try sample data</button></div>
+    <p class="muted">…or drag the folder onto this box.</p>
+    <ol><li>Click <b>Choose projects folder</b> and select <code>~/.claude/projects</code> (Windows: <code>C:\\Users\\you\\.claude\\projects</code>).</li>
+    <li>The folder is hidden. In the macOS picker press <code>Cmd+Shift+.</code>; on Linux press <code>Ctrl+H</code>; on Windows type the path in the address bar.</li>
+    <li>Your browser may say it will “upload” the files. That wording is generic; they are only read locally.</li></ol></div>`;
+}
+
+/* ───────── router + render ───────── */
+const TABS = [["overview", "Overview"], ["prompts", "Prompts"], ["sessions", "Sessions"], ["projects", "Projects"], ["tips", "Tips"]];
+function route() {
+  const h = location.hash.replace(/^#/, "") || "overview";
+  const [name, ...rest] = h.split("/");
+  let arg = null;
+  try { arg = rest.length ? decodeURIComponent(rest.join("/")) : null; } catch (e) { /* malformed escape: ignore */ }
+  return { name: TABS.some(t => t[0] === name) ? name : "overview", arg };
+}
+function render() {
+  const r = route();
+  $("#tabs").innerHTML = TABS.map(([k, l]) => `<a href="#${k}"${r.name === k ? ' aria-current="page"' : ""}>${l}${k === "tips" && TIPS.length ? ` (${TIPS.length})` : ""}</a>`).join("");
+  const v = $("#view");
+  if (!D.assistants.length) { v.innerHTML = vEmpty(); return; }
+  v.innerHTML = ({ overview: vOverview, prompts: vPrompts, sessions: () => vSessions(r.arg), projects: vProjects, tips: vTips }[r.name] || vOverview)();
+  if (r.name === "overview" && !showTable) drawDaily();
+}
+function drawDaily() {
+  const el = $("#daily"); if (!el) return;
+  el.innerHTML = dailyChart(el.clientWidth || 700);
+}
+function setStatus(t) { $("#status").textContent = t || ""; }
+function refreshAll() {
+  D = derive(S); TIPS = computeTips(S, D);
+  setStatus(D.assistants.length ? `${fmtInt(D.assistants.length)} assistant turns from ${fmtInt(S.files)} files · ${fmtInt(S.skipped)} unreadable lines skipped · data ${D.minTs.slice(0, 10)} to ${D.maxTs.slice(0, 10)} (UTC)` : "");
+  render();
+}
+
+/* ───────── loading ───────── */
+async function loadEntries(entries) {
+  const list = entries.filter(e => /\.jsonl$/i.test(e.path));
+  if (!list.length) { setStatus("No .jsonl files found in that selection."); return; }
+  S = newStore();
+  for (let i = 0; i < list.length; i++) {
+    setStatus(`Reading ${i + 1} of ${list.length}: ${list[i].path}`);
+    try { ingest(await list[i].file.text(), slugFromPath(list[i].path), S); S.files++; }
+    catch (e) { S.skipped++; }
+    await new Promise(r => setTimeout(r));
+  }
+  refreshAll();
+}
+function entriesFromInput(input) {
+  return [...input.files].map(f => ({ file: f, path: f.webkitRelativePath || f.name }));
+}
+async function walkDrop(items) {
+  const out = [];
+  const readAll = reader => new Promise(res => { const acc = []; const step = () => reader.readEntries(b => { if (!b.length) res(acc); else { acc.push(...b); step(); } }, () => res(acc)); step(); });
+  async function walk(entry, prefix) {
+    if (entry.isFile) await new Promise(res => entry.file(f => { out.push({ file: f, path: prefix + entry.name }); res(); }, res));
+    else if (entry.isDirectory) for (const c of await readAll(entry.createReader())) await walk(c, prefix + entry.name + "/");
+  }
+  for (const it of items) { const en = it.webkitGetAsEntry && it.webkitGetAsEntry(); if (en) await walk(en, ""); }
+  return out;
+}
+
+/* sample data: synthetic transcripts run through the same parser */
+function sampleText() {
+  let seed = 7; const rnd = () => { seed |= 0; seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const pick = a => a[Math.floor(rnd() * a.length)];
+  const projects = { "-home-me-webapp": { models: ["claude-opus-4-7", "claude-sonnet-4-6"], cacheBias: 0.9 },
+    "-home-me-api-service": { models: ["claude-sonnet-4-6", "claude-haiku-4-5"], cacheBias: 0.85 },
+    "-home-me-scratch": { models: ["claude-opus-4-7"], cacheBias: 0.1 } };
+  const asks = ["Refactor the auth middleware", "Why is this test flaky?", "Add pagination to the list endpoint", "Explain the build pipeline", "Fix the failing CI job", "Write a migration for the orders table", "Review this diff for bugs", "Speed up the dashboard query"];
+  const files = ["src/app.js", "src/auth.js", "server/routes.py", "README.md", "tests/test_api.py"];
+  const out = {}; let uid = 0; const U = () => "u" + (++uid);
+  const now = Date.now();
+  for (const [slug, cfg] of Object.entries(projects)) {
+    const lines = [];
+    for (let d = 20; d >= 0; d--) {
+      const sessions = 1 + Math.floor(rnd() * 2);
+      for (let s = 0; s < sessions; s++) {
+        const sid = slug.slice(-4) + "-" + d + "-" + s;
+        let t = now - d * DAY - Math.floor(rnd() * 8) * 3600000;
+        const nP = 3 + Math.floor(rnd() * 5);
+        for (let p = 0; p < nP; p++) {
+          t += 60000; const ts = k => new Date(t + k * 1000).toISOString();
+          lines.push({ type: "user", uuid: U(), sessionId: sid, timestamp: ts(0), message: { role: "user", content: pick(asks) } });
+          const turns = 1 + Math.floor(rnd() * 4);
+          for (let k = 0; k < turns; k++) {
+            const model = pick(cfg.models), mid = "msg_" + U(), big = rnd() < 0.04;
+            const toolName = pick(["Read", "Read", "Read", "Edit", "Bash", "Grep"]);
+            const input = toolName === "Bash" ? { command: pick(["npm test", "git status", "pytest -q"]) } : toolName === "Grep" ? { pattern: "TODO" } : { file_path: rnd() < 0.5 ? "src/app.js" : pick(files) };
+            const tid = "tu_" + U();
+            const cacheRead = Math.floor((20000 + rnd() * 90000) * cfg.cacheBias), create = Math.floor((3000 + rnd() * 20000) * (1.05 - cfg.cacheBias));
+            const short = model.includes("opus") && rnd() < 0.6;
+            const usage = { input_tokens: 200 + Math.floor(rnd() * 3000), output_tokens: short ? 60 + Math.floor(rnd() * 380) : 400 + Math.floor(rnd() * 3500),
+              cache_read_input_tokens: cacheRead, cache_creation: { ephemeral_5m_input_tokens: create + (short ? 4000 : 0), ephemeral_1h_input_tokens: 0 } };
+            const base = { type: "assistant", sessionId: sid, timestamp: ts(2 + k * 8) };
+            // streaming snapshot first (lower output, other uuid) then the final one
+            lines.push({ ...base, uuid: U(), message: { id: mid, model, content: [{ type: "text", text: "…" }], usage: { ...usage, output_tokens: Math.floor(usage.output_tokens / 3) } } });
+            lines.push({ ...base, uuid: U(), message: { id: mid, model, content: [{ type: "text", text: "ok" }, { type: "tool_use", id: tid, name: toolName, input }], usage } });
+            lines.push({ type: "user", uuid: U(), sessionId: sid, timestamp: ts(5 + k * 8), message: { role: "user", content: [{ type: "tool_result", tool_use_id: tid, content: "x".repeat(big ? 240000 : 400 + Math.floor(rnd() * 6000)), is_error: false }] } });
+          }
+        }
+      }
+    }
+    out[slug] = lines.map(l => JSON.stringify(l)).join("\n");
+  }
+  return out;
+}
+function loadSample() {
+  S = newStore();
+  for (const [slug, text] of Object.entries(sampleText())) { ingest(text, slug, S); S.files++; }
+  refreshAll();
+  setStatus("Showing SAMPLE data, not yours. " + $("#status").textContent);
+}
+
+/* ───────── events ───────── */
+function init() {
+  $("#plan").innerHTML = Object.entries(PRICING.plans).map(([k, p]) => `<option value="${k}"${k === state.plan ? " selected" : ""}>${esc(p.label)}</option>`).join("");
+  if (!PRICING.plans[state.plan]) state.plan = "api";
+  const theme = lsGet("td.theme", "");
+  if (theme) document.documentElement.setAttribute("data-theme", theme);
+  $("#btn-folder").onclick = () => $("#in-folder").click();
+  $("#btn-files").onclick = () => $("#in-files").click();
+  $("#btn-sample").onclick = loadSample;
+  $("#in-folder").onchange = e => loadEntries(entriesFromInput(e.target));
+  $("#in-files").onchange = e => loadEntries(entriesFromInput(e.target));
+  $("#plan").onchange = e => { state.plan = e.target.value; lsSet("td.plan", state.plan); render(); };
+  $("#btn-theme").onclick = () => {
+    const cur = document.documentElement.getAttribute("data-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    const next = cur === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next); lsSet("td.theme", next);
+  };
+  window.addEventListener("hashchange", render);
+  window.addEventListener("resize", () => { if (route().name === "overview" && !showTable) drawDaily(); });
+  const view = $("#view"), tip = $("#tip-box");
+  view.addEventListener("click", e => {
+    const a = e.target.closest("[data-act]");
+    if (a) { ({ folder: () => $("#in-folder").click(), files: () => $("#in-files").click(), sample: loadSample })[a.dataset.act](); return; }
+    if (e.target.closest("#toggle-table")) { showTable = !showTable; render(); return; }
+    const d = e.target.closest("[data-dismiss]");
+    if (d) { const m = dismissed(); m[d.dataset.dismiss] = Date.now(); lsSet("td.dismissed", JSON.stringify(m)); render(); return; }
+    const row = e.target.closest("tr[data-href]");
+    if (row) location.hash = row.dataset.href;
+  });
+  view.addEventListener("keydown", e => { if (e.key === "Enter") { const row = e.target.closest("tr[data-href]"); if (row) location.hash = row.dataset.href; } });
+  view.addEventListener("pointermove", e => {
+    const hit = e.target.closest && e.target.closest(".hit");
+    if (!hit) { tip.style.display = "none"; return; }
+    const v = D.days.get(hit.dataset.day) || { i: 0, o: 0, cr: 0, cc: 0, cost: 0, turns: 0 };
+    tip.innerHTML = `<div class="t">${esc(hit.dataset.day)}</div>` +
+      SERIES.map(s => `<div class="r"><span><i style="background:var(${s.css})"></i>${s.label}</span><span>${fmtTok(v[s.key])}</span></div>`).join("") +
+      `<div class="r" style="margin-top:4px"><span>Est. cost</span><span>${fmtUsd(v.cost)}</span></div>`;
+    tip.style.display = "block";
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    tip.style.left = Math.min(innerWidth - w - 8, e.clientX + 14) + "px";
+    tip.style.top = Math.max(8, Math.min(innerHeight - h - 8, e.clientY + 14)) + "px";
+  });
+  view.addEventListener("pointerleave", () => { tip.style.display = "none"; });
+  const dropTarget = document.body;
+  dropTarget.addEventListener("dragover", e => { e.preventDefault(); const z = $("#dropzone"); if (z) z.classList.add("drag"); });
+  dropTarget.addEventListener("dragleave", () => { const z = $("#dropzone"); if (z) z.classList.remove("drag"); });
+  dropTarget.addEventListener("drop", async e => {
+    e.preventDefault();
+    const z = $("#dropzone"); if (z) z.classList.remove("drag");
+    const items = [...(e.dataTransfer.items || [])];
+    setStatus("Scanning dropped items…");
+    await loadEntries(await walkDrop(items));
+  });
+  render();
+}
+init();
+if (location.hash === "#demo") { history.replaceState(null, "", "#overview"); loadSample(); }
+</script>
+</body>
+</html>
