@@ -74,6 +74,7 @@ header.top {
 }
 header.top h1 { font-size: 16px; margin: 0; font-weight: 650; letter-spacing: .01em; }
 header.top .spacer { flex: 1; }
+.nowrap { white-space: nowrap; }
 .btn, select {
   font: inherit; color: var(--text-primary); background: var(--surface-1);
   border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; cursor: pointer;
@@ -165,12 +166,19 @@ pre.ptxt { white-space: pre-wrap; word-break: break-word; background: var(--surf
 <body>
 <header class="top">
   <h1>Token Dashboard</h1>
+  <button class="btn primary" id="btn-live" type="button" hidden>Connect folder (auto-refresh)</button>
+  <button class="btn" id="btn-unlive" type="button" hidden>Stop live</button>
+  <span id="live-controls" hidden>
+    <span class="nowrap"><label class="muted" for="poll">Refresh</label>
+    <select id="poll" aria-label="Auto-refresh interval"></select></span>
+    <button class="btn" id="btn-scan" type="button">Scan now</button>
+  </span>
   <button class="btn primary" id="btn-folder" type="button">Choose projects folder</button>
   <button class="btn" id="btn-files" type="button">Choose .jsonl files</button>
   <button class="btn" id="btn-sample" type="button">Sample data</button>
   <span class="spacer"></span>
-  <label class="muted" for="plan">Plan</label>
-  <select id="plan" aria-label="Pricing plan"></select>
+  <span class="nowrap"><label class="muted" for="plan">Plan</label>
+  <select id="plan" aria-label="Pricing plan"></select></span>
   <button class="btn" id="btn-theme" type="button" aria-label="Toggle light or dark theme">Theme</button>
   <input type="file" id="in-folder" webkitdirectory directory multiple hidden>
   <input type="file" id="in-files" accept=".jsonl" multiple hidden>
@@ -509,7 +517,7 @@ function vOverview() {
     days.slice().reverse().map(d => { const v = D.days.get(d); return v ? `<tr><td>${d}</td><td class="num">${fmtInt(v.i)}</td><td class="num">${fmtInt(v.o)}</td><td class="num">${fmtInt(v.cr)}</td><td class="num">${fmtInt(v.cc)}</td><td class="num">${fmtUsd(v.cost)}</td></tr>` : ""; }).join("")}</tbody></table></div>`;
   return `${warn}${kpis()}
     <section class="card">
-      <div class="chart-head"><div><h2>Daily tokens</h2><p class="sub">Stacked by token type · UTC days · last ${days.length} days</p></div>
+      <div class="chart-head"><div><h2>Daily tokens</h2><p class="sub">Stacked by token type · UTC days · last ${days.length} ${days.length === 1 ? "day" : "days"}</p></div>
         <button class="linkbtn" id="toggle-table" type="button">${showTable ? "Show chart" : "Show table"}</button></div>
       <ul class="legend">${SERIES.map(s => `<li><i style="background:var(${s.css})"></i>${s.label}</li>`).join("")}</ul>
       <div id="daily">${showTable ? tbl : ""}</div>
@@ -582,12 +590,16 @@ function vTips() {
 function vEmpty() {
   return `<div class="empty" id="dropzone"><h2>Load your Claude Code logs</h2>
     <p>This page reads the session transcripts Claude Code saves on your computer. <b>Files stay in your browser</b> and nothing is uploaded; the page makes no network requests with your data.</p>
-    <div class="actions"><button class="btn primary" data-act="folder" type="button">Choose projects folder</button>
+    <div class="actions">${SUPPORTS_LIVE ? (live.needsPermission && live.pending
+        ? `<button class="btn primary" data-act="reconnect" type="button">Reconnect “${esc(live.pending.name)}”</button>`
+        : '<button class="btn primary" data-act="live" type="button">Connect folder (auto-refresh)</button>') : ""}
+      <button class="btn${SUPPORTS_LIVE ? "" : " primary"}" data-act="folder" type="button">Choose projects folder (one-time)</button>
       <button class="btn" data-act="files" type="button">Choose .jsonl files</button>
       <button class="btn" data-act="sample" type="button">Try sample data</button></div>
     <p class="muted">…or drag the folder onto this box.</p>
     <ol><li>Click <b>Choose projects folder</b> and select <code>~/.claude/projects</code> (Windows: <code>C:\\Users\\you\\.claude\\projects</code>).</li>
     <li>The folder is hidden. In the macOS picker press <code>Cmd+Shift+.</code>; on Linux press <code>Ctrl+H</code>; on Windows type the path in the address bar.</li>
+    <li>${SUPPORTS_LIVE ? "<b>Connect folder</b> remembers the folder and re-scans every 60 seconds while this tab is open (change it with the Refresh menu). After you reopen the page, your browser may ask for one click to allow access again." : "Live auto-refresh needs Chrome or Edge; in this browser, reload the folder to update."}</li>
     <li>Your browser may say it will “upload” the files. That wording is generic; they are only read locally.</li></ol></div>`;
 }
 
@@ -613,9 +625,13 @@ function drawDaily() {
   el.innerHTML = dailyChart(el.clientWidth || 700);
 }
 function setStatus(t) { $("#status").textContent = t || ""; }
+function statusText() {
+  if (!D.assistants.length) return "";
+  return `${fmtInt(D.assistants.length)} assistant turns from ${fmtInt(S.files)} files · ${fmtInt(S.skipped)} unreadable lines skipped · data ${D.minTs.slice(0, 10)} to ${D.maxTs.slice(0, 10)} (UTC)` + liveSuffix();
+}
 function refreshAll() {
   D = derive(S); TIPS = computeTips(S, D);
-  setStatus(D.assistants.length ? `${fmtInt(D.assistants.length)} assistant turns from ${fmtInt(S.files)} files · ${fmtInt(S.skipped)} unreadable lines skipped · data ${D.minTs.slice(0, 10)} to ${D.maxTs.slice(0, 10)} (UTC)` : "");
+  setStatus(statusText());
   render();
 }
 
@@ -623,6 +639,7 @@ function refreshAll() {
 async function loadEntries(entries) {
   const list = entries.filter(e => /\.jsonl$/i.test(e.path));
   if (!list.length) { setStatus("No .jsonl files found in that selection."); return; }
+  stopLive(false);
   S = newStore();
   for (let i = 0; i < list.length; i++) {
     setStatus(`Reading ${i + 1} of ${list.length}: ${list[i].path}`);
@@ -692,10 +709,139 @@ function sampleText() {
   return out;
 }
 function loadSample() {
+  stopLive(false);
   S = newStore();
   for (const [slug, text] of Object.entries(sampleText())) { ingest(text, slug, S); S.files++; }
   refreshAll();
   setStatus("Showing SAMPLE data, not yours. " + $("#status").textContent);
+}
+
+
+/* ───────── live folder: Chromium File System Access API ─────────
+   The picked folder handle is remembered in IndexedDB. On later visits the browser may ask for one
+   click to re-grant access. While connected, only newly appended bytes of each .jsonl are re-read. */
+const SUPPORTS_LIVE = typeof window.showDirectoryPicker === "function";
+const POLL_CHOICES = [[15000, "15 seconds"], [30000, "30 seconds"], [60000, "60 seconds"], [120000, "2 minutes"], [300000, "5 minutes"], [0, "Off (manual)"]];
+const live = { pollMs: 60000, handle: null, pending: null, timer: null, cache: new Map(), scanning: false, last: null, needsPermission: false, remembered: true };
+const utf8 = new TextDecoder();
+function idbOpen() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open("token-dashboard", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("kv");
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function idbGet(k) {
+  try {
+    const db = await idbOpen();
+    return await new Promise((res, rej) => { const q = db.transaction("kv").objectStore("kv").get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
+  } catch (e) { return undefined; }
+}
+async function idbSet(k, v) {
+  try {
+    const db = await idbOpen();
+    await new Promise((res, rej) => {
+      const tx = db.transaction("kv", "readwrite");
+      if (v === undefined) tx.objectStore("kv").delete(k); else tx.objectStore("kv").put(v, k);
+      tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+    });
+    return true;
+  } catch (e) { return false; }
+}
+function liveSuffix() {
+  if (!live.handle || live.needsPermission) return "";
+  const every = live.pollMs ? "refreshes every " + (POLL_CHOICES.find(c => c[0] === live.pollMs) || [0, live.pollMs / 1000 + " seconds"])[1] : "auto-refresh off";
+  return ` · LIVE "${live.handle.name}", updated ${live.last ? live.last.toTimeString().slice(0, 8) : "…"}, ${every}` +
+    (live.remembered ? "" : " · this browser could not remember the folder");
+}
+function updateLiveButtons() {
+  const b = $("#btn-live"), u = $("#btn-unlive");
+  if (!SUPPORTS_LIVE) { b.hidden = true; u.hidden = true; return; }
+  const connected = !!live.handle && !live.needsPermission;
+  b.hidden = connected;
+  b.textContent = live.needsPermission && live.pending ? `Reconnect “${live.pending.name}”` : "Connect folder (auto-refresh)";
+  u.hidden = !(connected || live.needsPermission);
+  $("#live-controls").hidden = !connected;
+  $("#btn-folder").classList.toggle("primary", !SUPPORTS_LIVE);
+}
+async function walkHandle(dir, prefix, out) {
+  for await (const [name, h] of dir.entries()) {
+    if (h.kind === "directory") await walkHandle(h, prefix + name + "/", out);
+    else if (/\.jsonl$/i.test(name)) out.push({ handle: h, path: prefix + name });
+  }
+}
+async function scanLive(initial) {
+  if (!live.handle || live.scanning) return;
+  live.scanning = true;
+  const handle = live.handle;
+  try {
+    const list = [];
+    await walkHandle(handle, handle.name + "/", list);
+    let changed = 0, seen = 0;
+    for (const e of list) {
+      if (live.handle !== handle) return; // disconnected or replaced mid-scan
+      let file;
+      try { file = await e.handle.getFile(); } catch (err) { if (err && err.name === "NotAllowedError") throw err; continue; }
+      let c = live.cache.get(e.path);
+      if (c && file.size === c.size && file.lastModified === c.mtime) continue;
+      if (!c) { c = { consumed: 0, size: -1, mtime: -1 }; live.cache.set(e.path, c); S.files++; }
+      if (file.size < c.consumed) c.consumed = 0; // file was rewritten shorter: start over (dedup keeps totals right)
+      const buf = new Uint8Array(await file.slice(c.consumed).arrayBuffer());
+      const nl = buf.lastIndexOf(10); // only consume complete lines; a half-written tail is retried next scan
+      if (nl >= 0) { ingest(utf8.decode(buf.subarray(0, nl + 1)), slugFromPath(e.path), S); c.consumed += nl + 1; changed++; }
+      c.size = file.size; c.mtime = file.lastModified;
+      if (initial && ++seen % 5 === 0) { setStatus(`Reading ${seen} of ${list.length}: ${e.path}`); await new Promise(r => setTimeout(r)); }
+    }
+    live.last = new Date();
+    if (changed || initial) refreshAll(); else setStatus(statusText());
+  } catch (err) {
+    if (live.handle !== handle) return;
+    clearInterval(live.timer); live.timer = null;
+    live.needsPermission = true; live.pending = handle;
+    updateLiveButtons(); render();
+    setStatus(err && err.name === "NotAllowedError" ? "Folder access expired. Click Reconnect." : "Could not read the folder: " + (err && err.message));
+  } finally { live.scanning = false; }
+}
+async function startLive(handle) {
+  stopLive(false);
+  S = newStore(); D = derive(S); TIPS = [];
+  live.handle = handle; live.pending = handle; live.cache = new Map(); live.needsPermission = false; live.last = null;
+  updateLiveButtons();
+  await scanLive(true);
+  setLiveTimer();
+}
+function setLiveTimer() {
+  clearInterval(live.timer); live.timer = null;
+  if (live.handle && !live.needsPermission && live.pollMs > 0) live.timer = setInterval(() => { if (!document.hidden) scanLive(false); }, live.pollMs);
+}
+function stopLive(forget) {
+  clearInterval(live.timer); live.timer = null;
+  live.handle = null; live.needsPermission = false;
+  if (forget) { live.pending = null; idbSet("dirHandle", undefined); }
+  updateLiveButtons();
+}
+async function connectLive() {
+  let handle;
+  try { handle = await window.showDirectoryPicker({ id: "claude-projects", mode: "read" }); }
+  catch (e) { if (!e || e.name !== "AbortError") setStatus("Could not open the folder: " + (e && e.message)); return; }
+  live.remembered = await idbSet("dirHandle", handle);
+  await startLive(handle);
+}
+async function reconnectLive() {
+  const h = live.pending; if (!h) return connectLive();
+  let perm = "denied";
+  try { perm = await h.requestPermission({ mode: "read" }); } catch (e) { /* needs a user gesture; fall through */ }
+  if (perm === "granted") await startLive(h); else setStatus("Permission was not granted. Click Reconnect again, or choose the folder again.");
+}
+async function resumeLive() {
+  if (!SUPPORTS_LIVE) return;
+  const h = await idbGet("dirHandle");
+  if (!h || typeof h.queryPermission !== "function") return;
+  live.pending = h;
+  let perm = "prompt";
+  try { perm = await h.queryPermission({ mode: "read" }); } catch (e) { /* treat as not granted */ }
+  if (perm === "granted") await startLive(h);
+  else { live.needsPermission = true; updateLiveButtons(); render(); setStatus(`Click “Reconnect” to let this page read “${h.name}” again.`); }
 }
 
 /* ───────── events ───────── */
@@ -707,6 +853,15 @@ function init() {
   $("#btn-folder").onclick = () => $("#in-folder").click();
   $("#btn-files").onclick = () => $("#in-files").click();
   $("#btn-sample").onclick = loadSample;
+  $("#btn-live").onclick = () => (live.needsPermission && live.pending ? reconnectLive() : connectLive());
+  $("#btn-unlive").onclick = () => { stopLive(true); setStatus("Live folder disconnected and forgotten. Data on screen is a snapshot."); };
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && live.pollMs) scanLive(false); });
+  const saved = +lsGet("td.poll", "60000");
+  live.pollMs = POLL_CHOICES.some(c => c[0] === saved) ? saved : 60000;
+  $("#poll").innerHTML = POLL_CHOICES.map(([v, l]) => `<option value="${v}"${v === live.pollMs ? " selected" : ""}>${l}</option>`).join("");
+  $("#poll").onchange = e => { live.pollMs = +e.target.value; lsSet("td.poll", String(live.pollMs)); setLiveTimer(); setStatus(statusText()); };
+  $("#btn-scan").onclick = () => scanLive(false);
+  updateLiveButtons();
   $("#in-folder").onchange = e => loadEntries(entriesFromInput(e.target));
   $("#in-files").onchange = e => loadEntries(entriesFromInput(e.target));
   $("#plan").onchange = e => { state.plan = e.target.value; lsSet("td.plan", state.plan); render(); };
@@ -720,7 +875,7 @@ function init() {
   const view = $("#view"), tip = $("#tip-box");
   view.addEventListener("click", e => {
     const a = e.target.closest("[data-act]");
-    if (a) { ({ folder: () => $("#in-folder").click(), files: () => $("#in-files").click(), sample: loadSample })[a.dataset.act](); return; }
+    if (a) { ({ folder: () => $("#in-folder").click(), files: () => $("#in-files").click(), sample: loadSample, live: connectLive, reconnect: reconnectLive })[a.dataset.act](); return; }
     if (e.target.closest("#toggle-table")) { showTable = !showTable; render(); return; }
     const d = e.target.closest("[data-dismiss]");
     if (d) { const m = dismissed(); m[d.dataset.dismiss] = Date.now(); lsSet("td.dismissed", JSON.stringify(m)); render(); return; }
@@ -754,6 +909,7 @@ function init() {
   render();
 }
 init();
+resumeLive();
 if (location.hash === "#demo") { history.replaceState(null, "", "#overview"); loadSample(); }
 </script>
 </body>
